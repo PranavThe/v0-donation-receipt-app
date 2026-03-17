@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -44,22 +44,14 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>
 
-const ORG_INFO = {
-  name: "Vedanta Society of Providence",
-  address: "227 Angell Street, Providence, Rhode Island 02906, USA",
-  phone: "(401) 421-3960",
-  email: "providence@rkmm.org",
-  website: "vedantaprov.org",
-  ein: "05-0385129",
-  representative: "Swami Yogatmananda",
-  title: "Minister-in-Charge",
-}
-
 export function DonationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [savedReceipt, setSavedReceipt] = useState<{ receiptNumber: string } | null>(null)
+
+  // Ref forwarded into ReceiptPreview — points to the white document div
+  const receiptRef = useRef<HTMLDivElement>(null)
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -85,7 +77,6 @@ export function DonationForm() {
     setIsSubmitting(true)
 
     try {
-      // Save to database
       const response = await fetch("/api/receipts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -96,25 +87,15 @@ export function DonationForm() {
       })
 
       const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to save receipt")
-      }
+      if (!result.success) throw new Error(result.error || "Failed to save receipt")
 
       setSavedReceipt({ receiptNumber: result.receipt.receiptNumber })
 
-      // Generate and download PDF
-      await generateReceiptPDF({
-        receiptNumber: result.receipt.receiptNumber,
-        donorName: `${data.firstName} ${data.lastName}`,
-        donorEmail: data.email,
-        donorAddress: data.address,
-        donationAmount: parseFloat(data.donationAmount),
-        donationDate: data.donationDate,
-        paymentMethod: data.paymentMethod,
-        note: data.note,
-        orgInfo: ORG_INFO,
-      })
+      // Small delay to let React re-render with the new receipt number before capture
+      await new Promise((r) => setTimeout(r, 100))
+
+      if (!receiptRef.current) throw new Error("Receipt preview not found")
+      await generateReceiptPDF(receiptRef.current, result.receipt.receiptNumber)
     } catch (error) {
       console.error("Error:", error)
       alert("There was an error processing your request. Please try again.")
@@ -138,20 +119,14 @@ export function DonationForm() {
     setIsSendingEmail(true)
 
     try {
-      // Generate PDF as base64
-      const pdfBase64 = await generateReceiptPDF({
-        receiptNumber: savedReceipt.receiptNumber,
-        donorName: `${data.firstName} ${data.lastName}`,
-        donorEmail: data.email,
-        donorAddress: data.address,
-        donationAmount: parseFloat(data.donationAmount),
-        donationDate: data.donationDate,
-        paymentMethod: data.paymentMethod,
-        note: data.note,
-        orgInfo: ORG_INFO,
-      }, { returnBase64: true })
+      if (!receiptRef.current) throw new Error("Receipt preview not found")
 
-      // Send email via API
+      const pdfBase64 = await generateReceiptPDF(
+        receiptRef.current,
+        savedReceipt.receiptNumber,
+        { returnBase64: true }
+      )
+
       const response = await fetch("/api/send-receipt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -167,10 +142,7 @@ export function DonationForm() {
       })
 
       const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to send email")
-      }
+      if (!result.success) throw new Error(result.error || "Failed to send email")
 
       alert(`Receipt emailed successfully to ${data.email}!`)
     } catch (error) {
@@ -324,7 +296,6 @@ export function DonationForm() {
           />
         </div>
 
-        {/* Action Buttons */}
         <div className="flex flex-col gap-3 pt-2">
           <Button
             type="button"
@@ -334,16 +305,9 @@ export function DonationForm() {
             size="lg"
           >
             {isSubmitting ? (
-              <>
-                <Spinner className="mr-2 h-4 w-4" />
-                Saving & Generating...
-              </>
+              <><Spinner className="mr-2 h-4 w-4" />Saving & Generating...</>
             ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                <Download className="mr-2 h-4 w-4" />
-                Save & Download Receipt
-              </>
+              <><Save className="mr-2 h-4 w-4" /><Download className="mr-2 h-4 w-4" />Save & Download Receipt</>
             )}
           </Button>
 
@@ -356,15 +320,9 @@ export function DonationForm() {
             size="lg"
           >
             {isSendingEmail ? (
-              <>
-                <Spinner className="mr-2 h-4 w-4" />
-                Opening Email...
-              </>
+              <><Spinner className="mr-2 h-4 w-4" />Sending...</>
             ) : (
-              <>
-                <Mail className="mr-2 h-4 w-4" />
-                Email Receipt to Donor
-              </>
+              <><Mail className="mr-2 h-4 w-4" />Email Receipt to Donor</>
             )}
           </Button>
 
@@ -391,6 +349,7 @@ export function DonationForm() {
       {/* Preview Section */}
       <div className="lg:sticky lg:top-4 lg:self-start">
         <ReceiptPreview
+          ref={receiptRef}
           firstName={watchedValues.firstName}
           lastName={watchedValues.lastName}
           email={watchedValues.email}

@@ -5,10 +5,10 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 const ORG_INFO = {
   name: "Vedanta Society of Providence",
-  address: "227 Angell Street, Providence, Rhode Island 02906, USA",
-  phone: "(401) 421-3960",
+  address: "227 Angell Street, Providence, RI 02906",
+  phone: "401-421-3960",
   email: "providence@rkmm.org",
-  website: "vedantaprov.org",
+  website: "www.vedantaprov.org",
   ein: "05-0385129",
   representative: "Swami Yogatmananda",
   title: "Minister-in-Charge",
@@ -56,46 +56,84 @@ export async function POST(request: NextRequest) {
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
-        <body style="font-family: Georgia, 'Times New Roman', serif; line-height: 1.6; color: #3d3d3d; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; border-bottom: 2px solid #c9a227; padding-bottom: 20px; margin-bottom: 30px;">
-            <h1 style="color: #c9a227; margin: 0; font-size: 24px; font-weight: normal;">Vedanta Society of Providence</h1>
-            <p style="color: #666; font-size: 14px; margin: 5px 0;">227 Angell Street, Providence, Rhode Island 02906</p>
+        <body style="font-family: Georgia, 'Times New Roman', serif; line-height: 1.8; color: #3d3d3d; max-width: 600px; margin: 0 auto; padding: 30px 20px;">
+
+          <!-- Header -->
+          <div style="text-align: center; border-bottom: 2px solid #8B1A1A; padding-bottom: 20px; margin-bottom: 30px;">
+            <h1 style="color: #8B1A1A; margin: 0; font-size: 22px; font-weight: bold; letter-spacing: 0.02em;">
+              Vedanta Society of Providence
+            </h1>
+            <p style="color: #666; font-size: 13px; margin: 6px 0 0 0;">
+              ${ORG_INFO.address} &nbsp;·&nbsp; ${ORG_INFO.phone} &nbsp;·&nbsp; ${ORG_INFO.website}
+            </p>
           </div>
-          
-          <p style="font-size: 16px;">Dear ${firstName} ${lastName},</p>
-          
-          <p style="font-size: 16px;">Thank you for your generous donation of <strong>${formattedAmount}</strong> made on ${formattedDate}.</p>
-          
-          <p style="font-size: 16px;">Your support helps sustain our mission of spreading the message of Vedanta and the universal teachings of Sri Ramakrishna, Holy Mother Sri Sarada Devi, and Swami Vivekananda.</p>
-          
-          <div style="background-color: #f8f5eb; border-left: 4px solid #c9a227; padding: 15px 20px; margin: 25px 0;">
-            <p style="margin: 0; font-size: 14px;"><strong>Receipt Number:</strong> ${receiptNumber}</p>
-            <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Donation Amount:</strong> ${formattedAmount}</p>
-            <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Donation Date:</strong> ${formattedDate}</p>
-          </div>
-          
-          <p style="font-size: 16px;">Please find your official donation receipt attached to this email. This receipt may be used for your tax records.</p>
-          
-          <p style="font-size: 14px; color: #666; margin-top: 25px;">The Vedanta Society of Providence is a tax-exempt organization under Section 501(c)(3) of the Internal Revenue Code. Our EIN is ${ORG_INFO.ein}. No goods or services were provided in exchange for this donation.</p>
-          
-          <div style="border-top: 1px solid #ddd; margin-top: 30px; padding-top: 20px;">
-            <p style="font-size: 16px; margin-bottom: 5px;">With gratitude,</p>
-            <p style="font-size: 16px; margin: 0;"><strong>${ORG_INFO.representative}</strong></p>
-            <p style="font-size: 14px; color: #666; margin: 5px 0;">${ORG_INFO.title}</p>
-            <p style="font-size: 14px; color: #666; margin: 0;">Vedanta Society of Providence</p>
-          </div>
-          
-          <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #999; font-size: 12px;">
-            <p>${ORG_INFO.address}</p>
-            <p>Phone: ${ORG_INFO.phone} | Email: ${ORG_INFO.email}</p>
-            <p>Website: ${ORG_INFO.website}</p>
-          </div>
+
+          <!-- Body -->
+          <p style="font-size: 16px; margin-bottom: 20px;">
+            My Dear ${firstName} ${lastName},
+          </p>
+
+          <p style="font-size: 16px; margin-bottom: 20px;">
+            On behalf of the Vedanta Society of Providence, please accept our heartfelt gratitude
+            for your gracious donation of <strong>${formattedAmount}</strong> on ${formattedDate}.
+            No goods or services were given for that amount. The whole amount is tax-deductible.
+          </p>
+
+          <p style="font-size: 16px; margin-bottom: 30px;">
+            Please find your official donation receipt attached to this email.
+          </p>
+
+          <!-- Sign-off -->
+          <p style="font-size: 16px; margin-bottom: 4px;">${ORG_INFO.representative}</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 4px 0;">${ORG_INFO.title}</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 4px 0;">Date: ${formattedDate}</p>
+
+          <div style="margin: 24px 0; border-top: 1px solid #ddd;"></div>
+
+          <!-- Org block -->
+          <p style="font-size: 15px; font-weight: bold; margin: 0; text-transform: uppercase; letter-spacing: 0.05em;">
+            ${ORG_INFO.representative.toUpperCase()}
+          </p>
+          <p style="font-size: 14px; margin: 4px 0 0 0;">Vedanta Society of Providence</p>
+          <p style="font-size: 14px; color: #555; margin: 2px 0;">
+            ${ORG_INFO.address}
+          </p>
+          <p style="font-size: 14px; color: #555; margin: 2px 0;">
+            ${ORG_INFO.phone} &nbsp; ${ORG_INFO.website}
+          </p>
+          <p style="font-size: 14px; color: #555; margin: 2px 0;">
+            EIN #${ORG_INFO.ein}
+          </p>
+
+          <div style="margin: 24px 0; border-top: 1px solid #ddd;"></div>
+
+          <!-- Extra info -->
+          <p style="font-size: 14px; color: #555; margin-bottom: 16px;">
+            For more information about the Vedanta Society of Providence or about
+            ${ORG_INFO.representative}, please visit our website.
+          </p>
+
+          <!-- Quote -->
+          <p style="font-size: 15px; color: #8B1A1A; font-style: italic; text-align: center; margin: 20px 0; padding: 12px 20px; border-left: 3px solid #8B1A1A;">
+            "Arise, Awake and Stop Not Till The Goal is Reached" — Swami Vivekananda
+          </p>
+
+          <div style="margin: 24px 0; border-top: 1px solid #ddd;"></div>
+
+          <!-- No-reply notice -->
+          <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">
+            PLEASE DO NOT REPLY TO THIS EMAIL. THIS EMAIL ADDRESS IS NOT ATTENDED.<br/>
+            PLEASE USE: <a href="mailto:${ORG_INFO.email}" style="color: #8B1A1A;">${ORG_INFO.email}</a> for e-correspondence with us.
+          </p>
+
         </body>
         </html>
       `,
+      // pdfBase64 is base64-encoded HTML (from window.print approach).
+      // Attach as .html so the recipient can open it in a browser and print/save as PDF.
       attachments: [
         {
-          filename: `donation-receipt-${receiptNumber}.pdf`,
+          filename: `donation-receipt-${receiptNumber}.html`,
           content: pdfBase64,
         },
       ],

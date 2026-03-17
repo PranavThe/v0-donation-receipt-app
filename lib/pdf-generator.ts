@@ -163,7 +163,7 @@ function buildReceiptHTML(data: ReceiptData): string {
 
     <!-- TITLE -->
     <div class="title-band">
-      <div class="title-text">Official Donation Receipt</div>
+      <div class="title-text">Donation Receipt</div>
       <div class="title-sub">
         <div class="title-sub-line"></div>
         <div class="title-sub-text">501(c)(3) Tax-Exempt Organization &nbsp;·&nbsp; EIN: ${data.orgInfo.ein}</div>

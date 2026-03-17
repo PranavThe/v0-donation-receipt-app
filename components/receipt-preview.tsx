@@ -93,7 +93,7 @@ export function ReceiptPreview({
             </div>
 
             <div className="text-center py-4">
-              <p className="font-bold tracking-[0.2em] uppercase" style={{ fontSize: 13, color: DARK, fontFamily: "system-ui" }}>Official Donation Receipt</p>
+              <p className="font-bold tracking-[0.2em] uppercase" style={{ fontSize: 13, color: DARK, fontFamily: "system-ui" }}>Donation Receipt</p>
               <div className="flex justify-center items-center gap-3 mt-1">
                 <div style={{ height: 1, width: 40, backgroundColor: GOLD }} />
                 <p style={{ fontSize: 8.5, color: LITE, letterSpacing: "0.05em", fontFamily: "system-ui" }}>501(c)(3) Tax-Exempt Organization &nbsp;·&nbsp; EIN: {ORG_INFO.ein}</p>

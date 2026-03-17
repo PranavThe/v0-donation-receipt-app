@@ -1,4 +1,5 @@
-import { Building2, Phone, Mail, Globe, FileText } from "lucide-react"
+import { Phone, Mail, Globe, FileText } from "lucide-react"
+import Image from "next/image"
 
 const ORG_INFO = {
   name: "Vedanta Society of Providence",
@@ -14,9 +15,13 @@ export function OrgHeader() {
   return (
     <div className="text-center space-y-3 pb-6 border-b border-border">
       <div className="flex justify-center mb-4">
-        <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
-          <Building2 className="w-8 h-8 text-primary" />
-        </div>
+        <Image
+          src="/logo_no_bg2.webp"
+          alt="Vedanta Society of Providence"
+          width={64}
+          height={64}
+          className="object-contain"
+        />
       </div>
       <h1 className="text-2xl font-semibold text-foreground tracking-tight text-balance">
         {ORG_INFO.name}

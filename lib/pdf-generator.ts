@@ -22,7 +22,7 @@ interface ReceiptData {
   }
 }
 
-export function generateReceiptPDF(data: ReceiptData) {
+export function generateReceiptPDF(data: ReceiptData, options?: { returnBase64?: boolean }): string | void {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 20
@@ -166,6 +166,9 @@ export function generateReceiptPDF(data: ReceiptData) {
     { align: "center" }
   )
 
-  // Save the PDF
+  // Return base64 or save the PDF
+  if (options?.returnBase64) {
+    return doc.output("datauristring").split(",")[1]
+  }
   doc.save(`Donation_Receipt_${data.receiptNumber}.pdf`)
 }

@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     if (existingUsers.length > 0) {
       // Reuse existing user
       userId = existingUsers[0].id
-      
+
       // Update address if provided and different
       if (address) {
         await sql`
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
     // Generate unique receipt number: VSP-YYYYMMDD-XXX
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    
+
     // Get count of receipts created today for sequential numbering
     const todayStart = new Date().toISOString().slice(0, 10)
     const todayCount = await sql`

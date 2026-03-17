@@ -123,7 +123,12 @@ export function DonationForm() {
     }
   }
 
-  function handleEmailReceipt() {
+  async function handleEmailReceipt() {
+    if (!savedReceipt) {
+      alert("Please save the receipt first before emailing.")
+      return
+    }
+
     const data = form.getValues()
     if (!data.email || !data.firstName) {
       alert("Please fill in at least the name and email fields.")
@@ -132,16 +137,48 @@ export function DonationForm() {
 
     setIsSendingEmail(true)
 
-    const subject = encodeURIComponent("Donation Receipt – Vedanta Society of Providence")
-    const receiptInfo = savedReceipt 
-      ? `Receipt Number: ${savedReceipt.receiptNumber}\n` 
-      : ""
-    const body = encodeURIComponent(
-      `Dear ${data.firstName},\n\nThank you for your generous donation of $${data.donationAmount || "0.00"} to the Vedanta Society of Providence.\n\n${receiptInfo}Please find your official donation receipt attached to this email. This receipt may be used for your tax records.\n\nWith gratitude,\n${ORG_INFO.representative}\n${ORG_INFO.title}\nVedanta Society of Providence\n\nNote: Please attach the downloaded PDF receipt to this email before sending.`
-    )
-    window.location.href = `mailto:${data.email}?subject=${subject}&body=${body}`
+    try {
+      // Generate PDF as base64
+      const pdfBase64 = generateReceiptPDF({
+        receiptNumber: savedReceipt.receiptNumber,
+        donorName: `${data.firstName} ${data.lastName}`,
+        donorEmail: data.email,
+        donorAddress: data.address,
+        donationAmount: parseFloat(data.donationAmount),
+        donationDate: data.donationDate,
+        paymentMethod: data.paymentMethod,
+        note: data.note,
+        orgInfo: ORG_INFO,
+      }, { returnBase64: true })
 
-    setTimeout(() => setIsSendingEmail(false), 1000)
+      // Send email via API
+      const response = await fetch("/api/send-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          receiptNumber: savedReceipt.receiptNumber,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          donationAmount: data.donationAmount,
+          donationDate: format(data.donationDate, "yyyy-MM-dd"),
+          pdfBase64,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to send email")
+      }
+
+      alert(`Receipt emailed successfully to ${data.email}!`)
+    } catch (error) {
+      console.error("Email error:", error)
+      alert("Failed to send email. Please try again or download the receipt manually.")
+    } finally {
+      setIsSendingEmail(false)
+    }
   }
 
   function handleReset() {

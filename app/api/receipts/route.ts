@@ -4,7 +4,9 @@ import { NextResponse } from 'next/server'
 export async function POST(request: Request) {
   try {
     const data = await request.json()
-    const { firstName, lastName, email, address, donationAmount, donationDate, paymentMethod, note } = data
+    const { email, address, donationAmount, donationDate, paymentMethod, note } = data
+    const firstName = (data.firstName as string).toUpperCase()
+    const lastName = (data.lastName as string).toUpperCase()
 
     // ── Duplicate check ───────────────────────────────────────────────────────
     // Look for an existing receipt with the same donor + amount + date + method + note.

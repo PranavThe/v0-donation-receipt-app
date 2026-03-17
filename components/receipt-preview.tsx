@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { format } from "date-fns"
 import { FileText } from "lucide-react"
 
@@ -93,10 +94,12 @@ export function ReceiptPreview({
             {/* ── HEADER: logo left, org info right ── */}
             <div className="flex items-start justify-between mb-2">
               {/* Logo */}
-              <img
+              <Image
                 src="/logo_no_bg2.webp"
                 alt="VSP Logo"
-                className="w-14 h-16 object-contain flex-shrink-0"
+                width={56}
+                height={64}
+                className="object-contain flex-shrink-0"
               />
 
               {/* Org info – right-aligned */}

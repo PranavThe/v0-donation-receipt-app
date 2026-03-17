@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
       // Attach as .html so the recipient can open it in a browser and print/save as PDF.
       attachments: [
         {
-          filename: `donation-receipt-${receiptNumber}.html`,
+          filename: `donation-receipt-${receiptNumber}.pdf`,
           content: pdfBase64,
         },
       ],

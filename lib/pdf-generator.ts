@@ -22,16 +22,23 @@ interface ReceiptData {
   }
 }
 
-// Palette
-const RED = [139, 26, 26] as const   // #8B1A1A
-const DARK = [26, 26, 26] as const   // #1a1a1a
-const MID = [74, 74, 74] as const   // #4a4a4a
-const LITE = [122, 122, 122] as const   // #7a7a7a
-const WARM = [247, 242, 234] as const   // #f7f2ea
-const WARMDARK = [240, 235, 226] as const   // #f0ebe2
-const GOLD = [200, 169, 110] as const   // #c8a96e
-const BORDER = [217, 207, 196] as const   // #d9cfc4
-const WHITE = [255, 255, 255] as const
+// ── Palette (exact match to ReceiptPreview) ───────────────────────────────────
+const C = {
+  red: [139, 26, 26] as const,   // #8B1A1A
+  dark: [26, 26, 26] as const,   // #1a1a1a
+  mid: [74, 74, 74] as const,   // #4a4a4a
+  lite: [122, 122, 122] as const,   // #7a7a7a
+  warm: [247, 242, 234] as const,   // #f7f2ea
+  warmDark: [240, 235, 226] as const,   // #f0ebe2
+  gold: [200, 169, 110] as const,   // #c8a96e
+  border: [217, 207, 196] as const,   // #d9cfc4
+  border2: [232, 223, 211] as const,   // #e8dfd3
+  border3: [224, 216, 206] as const,   // #e0d8ce
+  border4: [208, 200, 190] as const,   // #d0c8be
+  attest: [253, 249, 244] as const,   // #fdf9f4
+  white: [255, 255, 255] as const,
+  sigLine: [153, 153, 153] as const,   // #999
+}
 
 async function fetchLogoBase64(): Promise<string | undefined> {
   try {
@@ -78,27 +85,10 @@ function amountInWords(n: number): string {
   return "US Dollars " + p.join(" ") + (c ? ` and ${c}/100` : "") + " Only"
 }
 
-function F(doc: jsPDF, rgb: readonly [number, number, number]) { doc.setFillColor(rgb[0], rgb[1], rgb[2]) }
-function D(doc: jsPDF, rgb: readonly [number, number, number]) { doc.setDrawColor(rgb[0], rgb[1], rgb[2]) }
-function T(doc: jsPDF, rgb: readonly [number, number, number]) { doc.setTextColor(rgb[0], rgb[1], rgb[2]) }
-
-// Draw a labelled field cell (used in the meta grid)
-function metaCell(
-  doc: jsPDF, x: number, y: number, w: number, h: number,
-  label: string, value: string, rightBorder: boolean, bottomBorder: boolean,
-  borderRgb: readonly [number, number, number], bgRgb: readonly [number, number, number]
-) {
-  F(doc, bgRgb); D(doc, borderRgb)
-  doc.setLineWidth(0.4)
-  doc.rect(x, y, w, h, "FD")
-  if (!rightBorder) { F(doc, bgRgb); doc.rect(x + w - 0.5, y, 1, h, "F") }
-  if (!bottomBorder) { F(doc, bgRgb); doc.rect(x, y + h - 0.5, w, 1, "F") }
-
-  doc.setFontSize(7); doc.setFont("helvetica", "normal"); T(doc, LITE)
-  doc.text(label.toUpperCase(), x + 8, y + 11)
-  doc.setFontSize(10); doc.setFont("helvetica", "bold"); T(doc, DARK)
-  doc.text(value, x + 8, y + 22)
-}
+// Shorthand setters
+function sf(doc: jsPDF, c: readonly [number, number, number]) { doc.setFillColor(c[0], c[1], c[2]) }
+function sd(doc: jsPDF, c: readonly [number, number, number]) { doc.setDrawColor(c[0], c[1], c[2]) }
+function st(doc: jsPDF, c: readonly [number, number, number]) { doc.setTextColor(c[0], c[1], c[2]) }
 
 export async function generateReceiptPDF(
   data: ReceiptData,
@@ -108,191 +98,242 @@ export async function generateReceiptPDF(
   const logoBase64 = await fetchLogoBase64()
 
   const doc = new jsPDF({ unit: "pt", format: "letter" })
-  const PW = doc.internal.pageSize.getWidth()   // 612
-  const PH = doc.internal.pageSize.getHeight()  // 792
-  const ML = 50
-  const MR = 50
-  const CW = PW - ML - MR   // 512
-  let y = 42
+  const PW = doc.internal.pageSize.getWidth()   // 612 pt
+  const PH = doc.internal.pageSize.getHeight()  // 792 pt
+
+  // px-8 py-7 in the preview ≈ 32px / 28px padding. At 96dpi→72pt scale: ~24pt / ~21pt
+  const ML = 36   // left margin
+  const MR = 36   // right margin
+  const CW = PW - ML - MR   // 540 pt usable width
+  let y = 28   // top margin (py-7 ≈ 28pt)
 
   // ── LETTERHEAD ─────────────────────────────────────────────────────────────
-  // Logo
+  // Logo: width=62px height=70px in preview → scale to ~56pt × 63pt
   if (logoBase64) {
-    doc.addImage(logoBase64, "PNG", ML, y, 64, 72)
+    doc.addImage(logoBase64, "PNG", ML, y, 56, 63)
   }
 
-  // Org name + contact block (right-aligned)
+  // Org block right-aligned
   const rx = PW - MR
-  doc.setFontSize(15); doc.setFont("helvetica", "bold"); T(doc, RED)
-  doc.text(data.orgInfo.name, rx, y + 16, { align: "right" })
-
-  doc.setFontSize(8.5); doc.setFont("helvetica", "normal"); T(doc, MID)
+  // Name: fontSize 15, bold, RED
+  doc.setFontSize(15); doc.setFont("helvetica", "bold"); st(doc, C.red)
+  doc.text(data.orgInfo.name, rx, y + 15, { align: "right" })
+  // Contact lines: fontSize 9, normal, MID, lineHeight ~1.6 → ~14.4pt apart
+  doc.setFontSize(9); doc.setFont("helvetica", "normal"); st(doc, C.mid)
   doc.text(data.orgInfo.address, rx, y + 30, { align: "right" })
-  doc.text(`Tel: ${data.orgInfo.phone}   |   ${data.orgInfo.email}`, rx, y + 41, { align: "right" })
-  doc.text(data.orgInfo.website, rx, y + 52, { align: "right" })
+  doc.text(`Tel: ${data.orgInfo.phone}  |  ${data.orgInfo.email}`, rx, y + 44, { align: "right" })
+  doc.text(data.orgInfo.website, rx, y + 58, { align: "right" })
 
-  y += 82
+  // pb-4 border-bottom 2.5px solid RED → advance past logo height (~63pt) + pb-4 (~16pt)
+  y += 71
 
-  // Thick red rule
-  D(doc, RED); doc.setLineWidth(2)
+  // Thick red bottom border of letterhead (2.5px → 2pt)
+  sd(doc, C.red); doc.setLineWidth(2)
   doc.line(ML, y, PW - MR, y)
   y += 2
 
-  // Thin gold rule
-  D(doc, GOLD); doc.setLineWidth(0.6)
-  doc.line(ML, y, PW - MR, y)
+  // ── TITLE BAND (py-4 = ~16pt top+bottom) ───────────────────────────────────
   y += 16
 
-  // ── DOCUMENT TITLE ─────────────────────────────────────────────────────────
-  doc.setFontSize(13); doc.setFont("helvetica", "bold"); T(doc, DARK)
+  // "Official Donation Receipt": fontSize 13, bold, DARK, tracking 0.2em
+  doc.setFontSize(13); doc.setFont("helvetica", "bold"); st(doc, C.dark)
   doc.text("OFFICIAL DONATION RECEIPT", PW / 2, y, { align: "center" })
-  y += 8
-
-  // Subtitle line
-  doc.setFontSize(8); doc.setFont("helvetica", "normal"); T(doc, LITE)
-  doc.text(
-    `501(c)(3) Tax-Exempt Organization  ·  EIN: ${data.orgInfo.ein}`,
-    PW / 2, y + 8, { align: "center" }
-  )
-  y += 24
-
-  // ── META GRID (2×2) ────────────────────────────────────────────────────────
-  const cellH = 34
-  const halfW = CW / 2
-
-  metaCell(doc, ML, y, halfW, cellH, "Receipt Number", data.receiptNumber, true, true, BORDER, WARM)
-  metaCell(doc, ML + halfW, y, halfW, cellH, "Date Issued", format(new Date(), "MMMM d, yyyy"), false, true, BORDER, WARM)
-  y += cellH
-  metaCell(doc, ML, y, halfW, cellH, "Donation Date", format(data.donationDate, "MMMM d, yyyy"), true, false, BORDER, WARM)
-  metaCell(doc, ML + halfW, y, halfW, cellH, "Payment Method", data.paymentMethod, false, false, BORDER, WARM)
-  y += cellH + 20
-
-  // ── DONOR SECTION ──────────────────────────────────────────────────────────
-  doc.setFontSize(7); doc.setFont("helvetica", "normal"); T(doc, LITE)
-  doc.text("RECEIVED WITH THANKS FROM", ML, y)
   y += 10
 
-  doc.setFontSize(12); doc.setFont("helvetica", "bold"); T(doc, DARK)
-  doc.text(data.donorName, ML, y + 3)
-  y += 16
+  // Subtitle row: gold lines + text (mt-1 ≈ 4pt)
+  y += 4
+  const subtitle = `501(c)(3) Tax-Exempt Organization  ·  EIN: ${data.orgInfo.ein}`
+  doc.setFontSize(8.5); doc.setFont("helvetica", "normal"); st(doc, C.lite)
+  const subW = doc.getTextWidth(subtitle)
+  const lineW = 29   // ~40px scaled
+  const subX = (PW / 2) - (subW / 2)
+  // Left gold line
+  sd(doc, C.gold); doc.setLineWidth(0.7)
+  doc.line(subX - lineW - 8, y, subX - 8, y)
+  doc.text(subtitle, PW / 2, y + 1, { align: "center" })
+  // Right gold line
+  doc.line(subX + subW + 8, y, subX + subW + 8 + lineW, y)
+  y += 16   // pb-4 bottom of title band
 
-  doc.setFontSize(9); doc.setFont("helvetica", "normal"); T(doc, MID)
-  if (data.donorEmail) { doc.text(data.donorEmail, ML, y); y += 12 }
-  if (data.donorAddress) {
-    const lines = doc.splitTextToSize(data.donorAddress, CW * 0.7)
-    doc.text(lines, ML, y)
-    y += lines.length * 12
+  // ── META BOX (mb-5 ≈ 20pt, border 1px #d9cfc4, bg WARM) ───────────────────
+  // 2×2 grid. Each cell: px-4 py-2.5 → ~16pt horizontal pad, ~10pt vertical pad
+  const metaBoxX = ML
+  const metaBoxW = CW
+  const cellH = 34   // py-2.5 (10pt) + label(8pt) + gap(3pt) + value(13pt) ≈ 34pt
+  const halfW = metaBoxW / 2
+  const metaBoxH = cellH * 2
+
+  // Outer fill + border
+  sf(doc, C.warm); sd(doc, C.border); doc.setLineWidth(0.7)
+  doc.rect(metaBoxX, y, metaBoxW, metaBoxH, "FD")
+
+  // Internal dividers
+  doc.setLineWidth(0.5)
+  // Horizontal mid-line
+  doc.line(metaBoxX, y + cellH, metaBoxX + metaBoxW, y + cellH)
+  // Vertical mid-line (full height)
+  doc.line(metaBoxX + halfW, y, metaBoxX + halfW, y + metaBoxH)
+
+  // Cell content helper
+  function metaCell(cx: number, cy: number, label: string, value: string, valueBold: boolean) {
+    const px = cx + 14   // px-4 ≈ 14pt
+    const ly = cy + 11   // label top
+    const vy = cy + 24   // value top
+    doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); st(doc, C.lite)
+    doc.text(label.toUpperCase(), px, ly)
+    const fs = valueBold ? 11 : 10
+    const fnt = valueBold ? "bold" : "normal"
+    const col = valueBold ? C.dark : C.mid
+    doc.setFontSize(fs); doc.setFont("helvetica", fnt); st(doc, col)
+    doc.text(value, px, vy)
   }
+
+  // Row 1
+  metaCell(metaBoxX, y, "Receipt Number", data.receiptNumber, true)
+  metaCell(metaBoxX + halfW, y, "Date Issued", format(new Date(), "MMMM d, yyyy"), true)
+  // Row 2
+  metaCell(metaBoxX, y + cellH, "Payment Method", data.paymentMethod, false)
+  metaCell(metaBoxX + halfW, y + cellH, "Donation Date", format(data.donationDate, "MMMM d, yyyy"), false)
+
+  y += metaBoxH + 20   // mb-5 ≈ 20pt
+
+  // ── DONOR SECTION (mb-5 ≈ 20pt) ────────────────────────────────────────────
+  // Label: fontSize 7.5, LITE, uppercase, tracking
+  doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); st(doc, C.lite)
+  doc.text("RECEIVED WITH THANKS FROM", ML, y)
+  y += 12   // marginBottom 6 + descender
+
+  // Name: fontSize 13, bold, DARK
+  doc.setFontSize(13); doc.setFont("helvetica", "bold"); st(doc, C.dark)
+  doc.text(data.donorName, ML, y)
   y += 14
 
-  // ── DONATIONS TABLE ────────────────────────────────────────────────────────
-  const colNo = 28
-  const colAmt = 90
+  // Email: fontSize 9.5, MID, mt-2 ≈ 2pt already baked in
+  doc.setFontSize(9.5); doc.setFont("helvetica", "normal"); st(doc, C.mid)
+  if (data.donorEmail) {
+    doc.text(data.donorEmail, ML, y)
+    y += 12
+  }
+  // Address: fontSize 9.5, MID, mt-1
+  if (data.donorAddress) {
+    const aLines = doc.splitTextToSize(data.donorAddress, CW * 0.7)
+    doc.text(aLines, ML, y)
+    y += aLines.length * 12
+  }
+  y += 20   // mb-5
+
+  // ── DONATIONS TABLE ─────────────────────────────────────────────────────────
+  // Header row: bg RED, padding 7px 10px, text white 8pt uppercase
+  const colNo = 26    // width: 28 in preview
+  const colAmt = 90    // width: 90 in preview
   const colDesc = CW - colNo - colAmt
-  const rowH = 24
+  const hRowH = 22    // py: 7pt top+bottom + 8pt text
+  const dRowH = 28    // py: 9pt top+bottom + 10pt text
+  const fRowH = 26    // tfoot py: 8pt + 10/11pt text
+  const pad = 10
+
   const tblTop = y
 
   // Header
-  F(doc, RED); D(doc, RED); doc.setLineWidth(0)
-  doc.rect(ML, y, CW, rowH, "F")
+  sf(doc, C.red); doc.rect(ML, y, CW, hRowH, "F")
+  doc.setFontSize(8); doc.setFont("helvetica", "bold"); st(doc, C.white)
+  doc.text("#", ML + pad, y + 14)
+  doc.text("DESCRIPTION", ML + colNo + pad, y + 14)
+  doc.text("AMOUNT (USD)", PW - MR - pad, y + 14, { align: "right" })
+  y += hRowH
 
-  doc.setFontSize(7.5); doc.setFont("helvetica", "bold"); T(doc, WHITE)
-  const hPad = 8
-  doc.text("#", ML + hPad, y + 15.5)
-  doc.text("DESCRIPTION", ML + colNo + hPad, y + 15.5)
-  doc.text("AMOUNT (USD)", ML + CW - hPad, y + 15.5, { align: "right" })
-  y += rowH
+  // Data row: bg WARM, border-bottom #e8dfd3
+  sf(doc, C.warm); doc.rect(ML, y, CW, dRowH, "F")
+  sd(doc, C.border2); doc.setLineWidth(0.5)
+  doc.line(ML, y + dRowH, ML + CW, y + dRowH)
+  doc.setFontSize(10); doc.setFont("helvetica", "normal")
+  st(doc, C.mid); doc.text("1", ML + pad + 3, y + 18, { align: "center" })
+  st(doc, C.dark); doc.text(data.note || "General Donation", ML + colNo + pad, y + 18)
+  const amtStr = "$" + data.donationAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  st(doc, C.dark); doc.text(amtStr, PW - MR - pad, y + 18, { align: "right" })
+  y += dRowH
 
-  // Data row
-  F(doc, WARM); D(doc, BORDER); doc.setLineWidth(0.4)
-  doc.rect(ML, y, CW, rowH, "FD")
+  // Footer/total row: bg warmDark, border-top 1.5px RED
+  sf(doc, C.warmDark); doc.rect(ML, y, CW, fRowH, "F")
+  sd(doc, C.red); doc.setLineWidth(1.5)
+  doc.line(ML, y, ML + CW, y)
+  // "TOTAL" label: 10pt bold DARK, right-aligned before amount col
+  doc.setFontSize(10); doc.setFont("helvetica", "bold"); st(doc, C.dark)
+  doc.text("TOTAL", PW - MR - colAmt - pad, y + 17, { align: "right" })
+  // Amount: 11pt bold RED
+  doc.setFontSize(11); st(doc, C.red)
+  doc.text(amtStr, PW - MR - pad, y + 17, { align: "right" })
+  y += fRowH
 
-  doc.setFontSize(9.5); doc.setFont("helvetica", "normal"); T(doc, MID)
-  doc.text("1", ML + hPad + 4, y + 15.5, { align: "center" })
-  T(doc, DARK)
-  doc.text(data.note || "General Donation", ML + colNo + hPad, y + 15.5)
-  const amtStr = "$" + data.donationAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })
-  doc.text(amtStr, ML + CW - hPad, y + 15.5, { align: "right" })
-  y += rowH
+  // Outer table border (draw on top)
+  sd(doc, C.border); doc.setLineWidth(0.5)
+  doc.rect(ML, tblTop, CW, y - tblTop, "S")
 
-  // Subtotal spacer row
-  F(doc, [235, 229, 220] as const); D(doc, BORDER); doc.setLineWidth(0.4)
-  doc.rect(ML, y, CW, 2, "F")
-  y += 2
+  y += 4   // small gap after table (mb-1)
 
-  // Total row
-  F(doc, WARMDARK); D(doc, RED); doc.setLineWidth(1.2)
-  doc.rect(ML, y, CW, rowH + 2, "FD")
-  doc.setLineWidth(0.4)
-
-  doc.setFontSize(8); doc.setFont("helvetica", "bold"); T(doc, MID)
-  doc.text("TOTAL DUE", ML + CW - colAmt - hPad, y + 16, { align: "right" })
-  doc.setFontSize(12); T(doc, RED)
-  doc.text(amtStr, ML + CW - hPad, y + 16.5, { align: "right" })
-  y += rowH + 2
-
-  // Column dividers (decorative)
-  D(doc, GOLD); doc.setLineWidth(0.4)
-  doc.line(ML + colNo, tblTop, ML + colNo, y)
-  doc.line(ML + CW - colAmt, tblTop, ML + CW - colAmt, y)
-
-  y += 10
-
-  // ── AMOUNT IN WORDS ────────────────────────────────────────────────────────
-  doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); T(doc, LITE)
-  doc.text("AMOUNT IN WORDS:", ML, y + 10)
-  doc.setFontSize(9); doc.setFont("helvetica", "bolditalic"); T(doc, DARK)
-  const wordLines = doc.splitTextToSize(amountInWords(data.donationAmount), CW - 105)
-  doc.text(wordLines, ML + 105, y + 10)
-  y += wordLines.length * 13 + 6
-
-  // Thin rule
-  D(doc, BORDER); doc.setLineWidth(0.5)
+  // ── AMOUNT IN WORDS (mt-2 pb-4 border-bottom #e0d8ce) ──────────────────────
+  y += 8   // mt-2
+  doc.setFontSize(8); doc.setFont("helvetica", "normal"); st(doc, C.lite)
+  doc.text("AMOUNT IN WORDS:", ML, y)
+  const labelW = doc.getTextWidth("AMOUNT IN WORDS:") + 6
+  doc.setFontSize(9.5); doc.setFont("helvetica", "italic"); st(doc, C.dark)
+  const wordLines = doc.splitTextToSize(amountInWords(data.donationAmount), CW - labelW)
+  doc.text(wordLines, ML + labelW, y)
+  y += Math.max(wordLines.length * 12, 12) + 8  // pb-4 gap before border
+  sd(doc, C.border3); doc.setLineWidth(0.5)
   doc.line(ML, y, PW - MR, y)
-  y += 16
+  y += 1 + 24   // mb-6
 
-  // ── ATTESTATION BOX ────────────────────────────────────────────────────────
-  F(doc, [253, 249, 244] as const); D(doc, BORDER); doc.setLineWidth(0.4)
-  doc.roundedRect(ML, y, CW, 32, 2, 2, "FD")
-  doc.setFontSize(8); doc.setFont("helvetica", "italic"); T(doc, MID)
-  const attestLines = doc.splitTextToSize(
-    "No goods or services were provided in exchange for this contribution. " +
-    "This letter serves as your official receipt for income tax purposes pursuant to IRC Section 170.",
-    CW - 20
-  )
-  doc.text(attestLines, ML + 10, y + 11)
-  y += 44
+  // ── ATTESTATION BOX (mb-6 px-4 py-3 rounded bg #fdf9f4 border #e8dfd3) ────
+  const attestText =
+    "No goods or services were provided in exchange for this contribution. This letter serves as your " +
+    "official receipt for income tax purposes pursuant to IRC Section 170."
+  doc.setFontSize(8.5); doc.setFont("helvetica", "italic"); st(doc, C.mid)
+  const attestLines = doc.splitTextToSize(attestText, CW - 28)
+  const attestH = attestLines.length * 14 + 14   // py-3 (~12pt top+bottom)
+  sf(doc, C.attest); sd(doc, C.border2); doc.setLineWidth(0.5)
+  doc.roundedRect(ML, y, CW, attestH, 2, 2, "FD")
+  doc.text(attestLines, ML + 14, y + 12)
+  y += attestH + 24   // mb-6
 
-  // ── SIGNATURE ──────────────────────────────────────────────────────────────
-  doc.setFontSize(8.5); doc.setFont("helvetica", "normal"); T(doc, MID)
+  // ── SIGNATURE (mb-6) ────────────────────────────────────────────────────────
+  // "Acknowledged with gratitude,": 9pt MID, mb ~20pt
+  doc.setFontSize(9); doc.setFont("helvetica", "normal"); st(doc, C.mid)
   doc.text("Acknowledged with gratitude,", ML, y)
-  y += 22
+  y += 22   // marginBottom 20
 
-  D(doc, MID); doc.setLineWidth(0.5)
-  doc.line(ML, y, ML + 150, y)
-  y += 5
+  // Signature line: width 160px → ~115pt, color #999
+  sd(doc, C.sigLine); doc.setLineWidth(0.5)
+  doc.line(ML, y, ML + 115, y)
+  y += 7   // marginBottom 5
 
-  doc.setFontSize(10); doc.setFont("helvetica", "bold"); T(doc, DARK)
-  doc.text(data.orgInfo.representative, ML, y + 12)
-  y += 14
-  doc.setFontSize(8.5); doc.setFont("helvetica", "normal"); T(doc, MID)
-  doc.text(data.orgInfo.title, ML, y + 12); y += 12
-  doc.text(data.orgInfo.name, ML, y + 12)
+  // Name: 10pt bold DARK
+  doc.setFontSize(10); doc.setFont("helvetica", "bold"); st(doc, C.dark)
+  doc.text(data.orgInfo.representative, ML, y)
+  y += 12
 
-  // ── FOOTER ─────────────────────────────────────────────────────────────────
-  const fy = PH - 38
-  D(doc, GOLD); doc.setLineWidth(0.6)
-  doc.line(ML, fy, PW - MR, fy)
-  D(doc, BORDER); doc.setLineWidth(0.3)
-  doc.line(ML, fy + 2, PW - MR, fy + 2)
+  // Title + org: 9pt MID, mt-1 each
+  doc.setFontSize(9); doc.setFont("helvetica", "normal"); st(doc, C.mid)
+  doc.text(data.orgInfo.title, ML, y); y += 11
+  doc.text(data.orgInfo.name, ML, y); y += 11
 
-  doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); T(doc, LITE)
-  const ftxt = `${data.orgInfo.name} is a registered 501(c)(3) non-profit organization. Donations are tax-deductible to the full extent permitted by law. EIN: ${data.orgInfo.ein}  ·  ${data.orgInfo.address}`
-  const flines = doc.splitTextToSize(ftxt, CW)
-  doc.text(flines, PW / 2, fy + 12, { align: "center" })
+  y += 14   // mb-6 remainder
 
-  // Page number
-  doc.text("Page 1 of 1", PW - MR, fy + 12, { align: "right" })
+  // ── FOOTER (pt-3 border-top #d0c8be, centered text) ────────────────────────
+  // Pin to bottom if there's room, otherwise place after signature
+  const footerY = Math.max(y + 10, PH - 50)
+
+  sd(doc, C.border4); doc.setLineWidth(0.5)
+  doc.line(ML, footerY, PW - MR, footerY)
+
+  doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); st(doc, C.lite)
+  const footerText =
+    `${data.orgInfo.name} is a registered 501(c)(3) non-profit organization. ` +
+    `Donations are tax-deductible to the full extent permitted by law. ` +
+    `EIN: ${data.orgInfo.ein}  ·  ${data.orgInfo.address}`
+  const fLines = doc.splitTextToSize(footerText, CW)
+  // Bold the org name manually — draw plain then re-draw first segment bold
+  doc.text(fLines, PW / 2, footerY + 10, { align: "center" })
 
   if (options?.returnBase64) {
     return doc.output("datauristring").split(",")[1]

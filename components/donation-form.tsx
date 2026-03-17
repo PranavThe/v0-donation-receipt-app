@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { format } from "date-fns"
-import { CalendarIcon, Download, Mail, Save } from "lucide-react"
+import { AlertCircle, CalendarIcon, Download, Mail, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -183,6 +183,8 @@ export function DonationForm() {
   const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [savedReceipt, setSavedReceipt] = useState<{ receiptNumber: string } | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [isDuplicate, setIsDuplicate] = useState(false)
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -220,7 +222,15 @@ export function DonationForm() {
         body: JSON.stringify({ ...data, donationDate: format(data.donationDate, "yyyy-MM-dd") }),
       })
       const result = await response.json()
-      if (!result.success) throw new Error(result.error || "Failed to save receipt")
+      if (!result.success) {
+        setIsDuplicate(result.duplicate === true)
+        setErrorMessage(result.duplicate
+          ? "This entry already exists — cannot create a duplicate receipt."
+          : (result.error || "Failed to save receipt"))
+        return
+      }
+      setErrorMessage(null)
+      setIsDuplicate(false)
       setSavedReceipt({ receiptNumber: result.receipt.receiptNumber })
       await generateReceiptPDF({
         receiptNumber: result.receipt.receiptNumber,
@@ -235,7 +245,8 @@ export function DonationForm() {
       })
     } catch (error) {
       console.error("Error:", error)
-      alert("There was an error processing your request. Please try again.")
+      setIsDuplicate(false)
+      setErrorMessage("There was an error processing your request. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
@@ -285,6 +296,8 @@ export function DonationForm() {
   function handleReset() {
     form.reset()
     setSavedReceipt(null)
+    setErrorMessage(null)
+    setIsDuplicate(false)
   }
 
   return (
@@ -403,6 +416,19 @@ export function DonationForm() {
           <Label htmlFor="note">Note / Purpose (Optional)</Label>
           <Textarea id="note" {...form.register("note")} placeholder="e.g., General Fund, Building Maintenance" className="bg-card resize-none" rows={2} />
         </div>
+
+        {errorMessage && (
+          <div className={`flex items-start gap-3 px-4 py-3 rounded-lg border text-sm ${isDuplicate
+              ? "bg-amber-50 border-amber-200 text-amber-800"
+              : "bg-destructive/10 border-destructive/20 text-destructive"
+            }`}>
+            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium">{isDuplicate ? "Duplicate Receipt" : "Error"}</p>
+              <p className="mt-0.5 text-xs opacity-90">{errorMessage}</p>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-3 pt-2">
           <Button type="button" onClick={handleSaveAndDownload} disabled={isSubmitting} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" size="lg">

@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { format } from "date-fns"
-import { CalendarIcon, Download, Mail } from "lucide-react"
+import { CalendarIcon, Download, Mail, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils"
 import { generateReceiptPDF } from "@/lib/pdf-generator"
 import { Spinner } from "@/components/ui/spinner"
+import { ReceiptPreview } from "@/components/receipt-preview"
 
 const formSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -56,7 +57,9 @@ const ORG_INFO = {
 
 export function DonationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [savedReceipt, setSavedReceipt] = useState<{ receiptNumber: string } | null>(null)
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -72,8 +75,15 @@ export function DonationForm() {
     },
   })
 
-  async function onSubmit(data: FormData) {
+  const watchedValues = form.watch()
+
+  async function handleSaveAndDownload() {
+    const isValid = await form.trigger()
+    if (!isValid) return
+
+    const data = form.getValues()
     setIsSubmitting(true)
+    
     try {
       // Save to database
       const response = await fetch("/api/receipts", {
@@ -91,6 +101,8 @@ export function DonationForm() {
         throw new Error(result.error || "Failed to save receipt")
       }
 
+      setSavedReceipt({ receiptNumber: result.receipt.receiptNumber })
+
       // Generate and download PDF
       generateReceiptPDF({
         receiptNumber: result.receipt.receiptNumber,
@@ -103,16 +115,6 @@ export function DonationForm() {
         note: data.note,
         orgInfo: ORG_INFO,
       })
-
-      // Open email client
-      const subject = encodeURIComponent("Donation Receipt – Vedanta Society of Providence")
-      const body = encodeURIComponent(
-        `Dear ${data.firstName},\n\nThank you for your generous donation to the Vedanta Society of Providence.\n\nPlease find your official donation receipt attached to this email. This receipt may be used for your tax records.\n\nWith gratitude,\n${ORG_INFO.representative}\n${ORG_INFO.title}\nVedanta Society of Providence`
-      )
-      window.location.href = `mailto:${data.email}?subject=${subject}&body=${body}`
-
-      // Reset form after successful submission
-      form.reset()
     } catch (error) {
       console.error("Error:", error)
       alert("There was an error processing your request. Please try again.")
@@ -121,161 +123,248 @@ export function DonationForm() {
     }
   }
 
+  function handleEmailReceipt() {
+    const data = form.getValues()
+    if (!data.email || !data.firstName) {
+      alert("Please fill in at least the name and email fields.")
+      return
+    }
+
+    setIsSendingEmail(true)
+
+    const subject = encodeURIComponent("Donation Receipt – Vedanta Society of Providence")
+    const receiptInfo = savedReceipt 
+      ? `Receipt Number: ${savedReceipt.receiptNumber}\n` 
+      : ""
+    const body = encodeURIComponent(
+      `Dear ${data.firstName},\n\nThank you for your generous donation of $${data.donationAmount || "0.00"} to the Vedanta Society of Providence.\n\n${receiptInfo}Please find your official donation receipt attached to this email. This receipt may be used for your tax records.\n\nWith gratitude,\n${ORG_INFO.representative}\n${ORG_INFO.title}\nVedanta Society of Providence\n\nNote: Please attach the downloaded PDF receipt to this email before sending.`
+    )
+    window.location.href = `mailto:${data.email}?subject=${subject}&body=${body}`
+
+    setTimeout(() => setIsSendingEmail(false), 1000)
+  }
+
+  function handleReset() {
+    form.reset()
+    setSavedReceipt(null)
+  }
+
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="firstName">First Name *</Label>
-          <Input
-            id="firstName"
-            {...form.register("firstName")}
-            placeholder="John"
-            className="bg-card"
-          />
-          {form.formState.errors.firstName && (
-            <p className="text-sm text-destructive">{form.formState.errors.firstName.message}</p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="lastName">Last Name *</Label>
-          <Input
-            id="lastName"
-            {...form.register("lastName")}
-            placeholder="Doe"
-            className="bg-card"
-          />
-          {form.formState.errors.lastName && (
-            <p className="text-sm text-destructive">{form.formState.errors.lastName.message}</p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="email">Email Address *</Label>
-          <Input
-            id="email"
-            type="email"
-            {...form.register("email")}
-            placeholder="john@example.com"
-            className="bg-card"
-          />
-          {form.formState.errors.email && (
-            <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="donationAmount">Donation Amount (USD) *</Label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+    <div className="grid lg:grid-cols-2 gap-6">
+      {/* Form Section */}
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="firstName">First Name *</Label>
             <Input
-              id="donationAmount"
-              {...form.register("donationAmount")}
-              placeholder="100.00"
-              className="bg-card pl-7"
+              id="firstName"
+              {...form.register("firstName")}
+              placeholder="John"
+              className="bg-card"
             />
+            {form.formState.errors.firstName && (
+              <p className="text-sm text-destructive">{form.formState.errors.firstName.message}</p>
+            )}
           </div>
-          {form.formState.errors.donationAmount && (
-            <p className="text-sm text-destructive">{form.formState.errors.donationAmount.message}</p>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="lastName">Last Name *</Label>
+            <Input
+              id="lastName"
+              {...form.register("lastName")}
+              placeholder="Doe"
+              className="bg-card"
+            />
+            {form.formState.errors.lastName && (
+              <p className="text-sm text-destructive">{form.formState.errors.lastName.message}</p>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="address">Address (Optional)</Label>
-        <Input
-          id="address"
-          {...form.register("address")}
-          placeholder="123 Main St, City, State ZIP"
-          className="bg-card"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Donation Date *</Label>
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-full justify-start text-left font-normal bg-card",
-                  !form.watch("donationDate") && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {form.watch("donationDate") ? (
-                  format(form.watch("donationDate"), "PPP")
-                ) : (
-                  <span>Pick a date</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={form.watch("donationDate")}
-                onSelect={(date) => {
-                  form.setValue("donationDate", date || new Date())
-                  setCalendarOpen(false)
-                }}
-                initialFocus
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email Address *</Label>
+            <Input
+              id="email"
+              type="email"
+              {...form.register("email")}
+              placeholder="john@example.com"
+              className="bg-card"
+            />
+            {form.formState.errors.email && (
+              <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="donationAmount">Donation Amount (USD) *</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+              <Input
+                id="donationAmount"
+                {...form.register("donationAmount")}
+                placeholder="100.00"
+                className="bg-card pl-7"
               />
-            </PopoverContent>
-          </Popover>
-          {form.formState.errors.donationDate && (
-            <p className="text-sm text-destructive">{form.formState.errors.donationDate.message}</p>
+            </div>
+            {form.formState.errors.donationAmount && (
+              <p className="text-sm text-destructive">{form.formState.errors.donationAmount.message}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="address">Address (Optional)</Label>
+          <Input
+            id="address"
+            {...form.register("address")}
+            placeholder="123 Main St, City, State ZIP"
+            className="bg-card"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Donation Date *</Label>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal bg-card",
+                    !form.watch("donationDate") && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {form.watch("donationDate") ? (
+                    format(form.watch("donationDate"), "PPP")
+                  ) : (
+                    <span>Pick a date</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={form.watch("donationDate")}
+                  onSelect={(date) => {
+                    form.setValue("donationDate", date || new Date())
+                    setCalendarOpen(false)
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            {form.formState.errors.donationDate && (
+              <p className="text-sm text-destructive">{form.formState.errors.donationDate.message}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label>Payment Method *</Label>
+            <Select
+              value={form.watch("paymentMethod")}
+              onValueChange={(value: FormData["paymentMethod"]) => form.setValue("paymentMethod", value)}
+            >
+              <SelectTrigger className="bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Cash">Cash</SelectItem>
+                <SelectItem value="Check">Check</SelectItem>
+                <SelectItem value="Credit Card">Credit Card</SelectItem>
+                <SelectItem value="Online/PayPal">Online/PayPal</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="note">Note / Purpose (Optional)</Label>
+          <Textarea
+            id="note"
+            {...form.register("note")}
+            placeholder="e.g., General Fund, Building Maintenance"
+            className="bg-card resize-none"
+            rows={2}
+          />
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col gap-3 pt-2">
+          <Button
+            type="button"
+            onClick={handleSaveAndDownload}
+            disabled={isSubmitting}
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+            size="lg"
+          >
+            {isSubmitting ? (
+              <>
+                <Spinner className="mr-2 h-4 w-4" />
+                Saving & Generating...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                <Download className="mr-2 h-4 w-4" />
+                Save & Download Receipt
+              </>
+            )}
+          </Button>
+
+          <Button
+            type="button"
+            onClick={handleEmailReceipt}
+            disabled={isSendingEmail}
+            variant="outline"
+            className="w-full"
+            size="lg"
+          >
+            {isSendingEmail ? (
+              <>
+                <Spinner className="mr-2 h-4 w-4" />
+                Opening Email...
+              </>
+            ) : (
+              <>
+                <Mail className="mr-2 h-4 w-4" />
+                Email Receipt to Donor
+              </>
+            )}
+          </Button>
+
+          {savedReceipt && (
+            <Button
+              type="button"
+              onClick={handleReset}
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              size="sm"
+            >
+              Clear Form & Start New Receipt
+            </Button>
           )}
         </div>
-        <div className="space-y-2">
-          <Label>Payment Method *</Label>
-          <Select
-            value={form.watch("paymentMethod")}
-            onValueChange={(value: FormData["paymentMethod"]) => form.setValue("paymentMethod", value)}
-          >
-            <SelectTrigger className="bg-card">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Cash">Cash</SelectItem>
-              <SelectItem value="Check">Check</SelectItem>
-              <SelectItem value="Credit Card">Credit Card</SelectItem>
-              <SelectItem value="Online/PayPal">Online/PayPal</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+
+        {savedReceipt && (
+          <div className="text-center text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+            Receipt saved! Number: <span className="font-mono font-medium">{savedReceipt.receiptNumber}</span>
+          </div>
+        )}
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="note">Note / Purpose (Optional)</Label>
-        <Textarea
-          id="note"
-          {...form.register("note")}
-          placeholder="e.g., General Fund, Building Maintenance"
-          className="bg-card resize-none"
-          rows={2}
+      {/* Preview Section */}
+      <div className="lg:sticky lg:top-4 lg:self-start">
+        <ReceiptPreview
+          firstName={watchedValues.firstName}
+          lastName={watchedValues.lastName}
+          email={watchedValues.email}
+          address={watchedValues.address}
+          donationAmount={watchedValues.donationAmount}
+          donationDate={watchedValues.donationDate}
+          paymentMethod={watchedValues.paymentMethod}
+          note={watchedValues.note}
+          receiptNumber={savedReceipt?.receiptNumber}
         />
       </div>
-
-      <Button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-        size="lg"
-      >
-        {isSubmitting ? (
-          <>
-            <Spinner className="mr-2 h-4 w-4" />
-            Processing...
-          </>
-        ) : (
-          <>
-            <Download className="mr-2 h-4 w-4" />
-            <Mail className="mr-2 h-4 w-4" />
-            Generate & Email Receipt
-          </>
-        )}
-      </Button>
-    </form>
+    </div>
   )
 }

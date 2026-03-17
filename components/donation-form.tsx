@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -44,14 +44,22 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>
 
+const ORG_INFO = {
+  name: "Vedanta Society of Providence",
+  address: "227 Angell Street, Providence, Rhode Island 02906, USA",
+  phone: "(401) 421-3960",
+  email: "providence@rkmm.org",
+  website: "vedantaprov.org",
+  ein: "05-0385129",
+  representative: "Swami Yogatmananda",
+  title: "Minister-in-Charge",
+}
+
 export function DonationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [savedReceipt, setSavedReceipt] = useState<{ receiptNumber: string } | null>(null)
-
-  // Ref forwarded into ReceiptPreview — points to the white document div
-  const receiptRef = useRef<HTMLDivElement>(null)
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -91,11 +99,17 @@ export function DonationForm() {
 
       setSavedReceipt({ receiptNumber: result.receipt.receiptNumber })
 
-      // Small delay to let React re-render with the new receipt number before capture
-      await new Promise((r) => setTimeout(r, 100))
-
-      if (!receiptRef.current) throw new Error("Receipt preview not found")
-      await generateReceiptPDF(receiptRef.current, result.receipt.receiptNumber)
+      await generateReceiptPDF({
+        receiptNumber: result.receipt.receiptNumber,
+        donorName: `${data.firstName} ${data.lastName}`,
+        donorEmail: data.email,
+        donorAddress: data.address,
+        donationAmount: parseFloat(data.donationAmount),
+        donationDate: data.donationDate,
+        paymentMethod: data.paymentMethod,
+        note: data.note,
+        orgInfo: ORG_INFO,
+      })
     } catch (error) {
       console.error("Error:", error)
       alert("There was an error processing your request. Please try again.")
@@ -119,13 +133,17 @@ export function DonationForm() {
     setIsSendingEmail(true)
 
     try {
-      if (!receiptRef.current) throw new Error("Receipt preview not found")
-
-      const pdfBase64 = await generateReceiptPDF(
-        receiptRef.current,
-        savedReceipt.receiptNumber,
-        { returnBase64: true }
-      )
+      const pdfBase64 = await generateReceiptPDF({
+        receiptNumber: savedReceipt.receiptNumber,
+        donorName: `${data.firstName} ${data.lastName}`,
+        donorEmail: data.email,
+        donorAddress: data.address,
+        donationAmount: parseFloat(data.donationAmount),
+        donationDate: data.donationDate,
+        paymentMethod: data.paymentMethod,
+        note: data.note,
+        orgInfo: ORG_INFO,
+      }, { returnBase64: true })
 
       const response = await fetch("/api/send-receipt", {
         method: "POST",
@@ -349,7 +367,6 @@ export function DonationForm() {
       {/* Preview Section */}
       <div className="lg:sticky lg:top-4 lg:self-start">
         <ReceiptPreview
-          ref={receiptRef}
           firstName={watchedValues.firstName}
           lastName={watchedValues.lastName}
           email={watchedValues.email}

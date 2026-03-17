@@ -124,8 +124,13 @@ export async function generateReceiptPDF(
   // "DONATION RECEIPT" — matches preview exactly (not "OFFICIAL...")
   y += 18
   doc.setFontSize(14); doc.setFont("helvetica", "bold"); st(doc, C.dark)
-  // Wide letter-spacing: draw with charSpace
-  doc.text("DONATION RECEIPT", PW / 2, y, { align: "center", charSpace: 3 })
+  // charSpace shifts the rendered width, so manually centre using measured width + spacing
+  const titleText = "DONATION RECEIPT"
+  const titleCharSpace = 3
+  const titleBaseW = doc.getTextWidth(titleText)
+  const titleExtraW = titleCharSpace * (titleText.length - 1)
+  const titleX = (PW / 2) - (titleBaseW + titleExtraW) / 2
+  doc.text(titleText, titleX, y, { charSpace: titleCharSpace })
   y += 12
 
   // Gold flanking lines + subtitle

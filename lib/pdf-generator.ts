@@ -221,7 +221,7 @@ function buildReceiptHTML(data: ReceiptData): string {
       </tbody>
       <tfoot>
         <tr>
-          <td>TOTAL</td>
+          <td colspan="2">TOTAL</td>
           <td>${amt}</td>
         </tr>
       </tfoot>

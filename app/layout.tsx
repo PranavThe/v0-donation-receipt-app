@@ -7,8 +7,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'Donation Receipt Generator | Vedanta Society of Providence',
+  description: 'Generate and email donation receipts for Vedanta Society of Providence',
   generator: 'v0.app',
   icons: {
     icon: [

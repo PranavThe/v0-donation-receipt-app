@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { format } from "date-fns"
-import { AlertCircle, CalendarIcon, Download, Mail, Save } from "lucide-react"
+import { AlertCircle, CalendarIcon, Mail, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -232,17 +232,6 @@ export function DonationForm() {
       setErrorMessage(null)
       setIsDuplicate(false)
       setSavedReceipt({ receiptNumber: result.receipt.receiptNumber })
-      await generateReceiptPDF({
-        receiptNumber: result.receipt.receiptNumber,
-        donorName: `${data.firstName} ${data.lastName}`,
-        donorEmail: data.email,
-        donorAddress: data.address,
-        donationAmount: parseFloat(data.donationAmount),
-        donationDate: data.donationDate,
-        paymentMethod: data.paymentMethod,
-        note: data.note,
-        orgInfo: ORG_INFO,
-      })
     } catch (error) {
       console.error("Error:", error)
       setIsDuplicate(false)
@@ -433,8 +422,8 @@ export function DonationForm() {
         <div className="flex flex-col gap-3 pt-2">
           <Button type="button" onClick={handleSaveAndDownload} disabled={isSubmitting} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" size="lg">
             {isSubmitting
-              ? <><Spinner className="mr-2 h-4 w-4" />Saving & Generating...</>
-              : <><Save className="mr-2 h-4 w-4" /><Download className="mr-2 h-4 w-4" />Save & Download Receipt</>}
+              ? <><Spinner className="mr-2 h-4 w-4" />Saving...</>
+              : <><Save className="mr-2 h-4 w-4" />Save Receipt</>}
           </Button>
           <Button type="button" onClick={handleEmailReceipt} disabled={isSendingEmail} variant="outline" className="w-full" size="lg">
             {isSendingEmail

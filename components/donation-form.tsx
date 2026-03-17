@@ -83,7 +83,7 @@ export function DonationForm() {
 
     const data = form.getValues()
     setIsSubmitting(true)
-    
+
     try {
       // Save to database
       const response = await fetch("/api/receipts", {
@@ -104,7 +104,7 @@ export function DonationForm() {
       setSavedReceipt({ receiptNumber: result.receipt.receiptNumber })
 
       // Generate and download PDF
-      generateReceiptPDF({
+      await generateReceiptPDF({
         receiptNumber: result.receipt.receiptNumber,
         donorName: `${data.firstName} ${data.lastName}`,
         donorEmail: data.email,
@@ -139,7 +139,7 @@ export function DonationForm() {
 
     try {
       // Generate PDF as base64
-      const pdfBase64 = generateReceiptPDF({
+      const pdfBase64 = await generateReceiptPDF({
         receiptNumber: savedReceipt.receiptNumber,
         donorName: `${data.firstName} ${data.lastName}`,
         donorEmail: data.email,

@@ -31,6 +31,22 @@ const GOLD_LINE = [224, 200, 160] as const   // #E0C8A0
 const WHITE = [255, 255, 255] as const
 const BLACK = [0, 0, 0] as const
 
+// ── Fetch logo from public folder and return base64 string ───────────────────
+async function fetchLogoBase64(): Promise<string | undefined> {
+  try {
+    const res = await fetch("/logo_no_bg2.webp")
+    const blob = await res.blob()
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve((reader.result as string).split(",")[1])
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return undefined
+  }
+}
+
 // ── Amount → words (up to 999,999) ───────────────────────────────────────────
 function amountInWords(n: number): string {
   const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
@@ -71,12 +87,13 @@ function setTextColor(doc: jsPDF, rgb: readonly [number, number, number]) {
   doc.setTextColor(rgb[0], rgb[1], rgb[2])
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
-export function generateReceiptPDF(
+// ── Main export (async so it can fetch the logo internally) ───────────────────
+export async function generateReceiptPDF(
   data: ReceiptData,
-  logoBase64?: string,          // pass base64 PNG/WEBP of the logo
   options?: { returnBase64?: boolean }
-): string | void {
+): Promise<string | void> {
+
+  const logoBase64 = await fetchLogoBase64()
 
   const doc = new jsPDF({ unit: "pt", format: "letter" })
   const PW = doc.internal.pageSize.getWidth()   // 612
@@ -87,12 +104,10 @@ export function generateReceiptPDF(
   let y = 36   // current y cursor (≈ 0.5 in top margin)
 
   // ── HEADER ─────────────────────────────────────────────────────────────────
-  // Logo (left)
   if (logoBase64) {
-    doc.addImage(logoBase64, "WEBP", ML, y, 61, 68)  // ~0.85 × 0.95 in
+    doc.addImage(logoBase64, "WEBP", ML, y, 61, 68)
   }
 
-  // Org name + contact (right-aligned)
   const orgRight = PW - MR
   doc.setFontSize(16)
   doc.setFont("helvetica", "bold")
@@ -116,33 +131,32 @@ export function generateReceiptPDF(
   y += 14
 
   // ── DONOR block (left) + Receipt meta (right) ──────────────────────────────
-  const donorX = ML
-  const metaX = ML + CW * 0.58   // meta table starts at ~58 % of content width
+  const metaX = ML + CW * 0.58
 
-  // Donor
   doc.setFontSize(10)
   doc.setFont("helvetica", "normal")
   setTextColor(doc, MID_GRAY)
-  doc.text("Received with thanks from", donorX, y)
+  doc.text("Received with thanks from", ML, y)
   y += 14
 
   doc.setFontSize(11)
   doc.setFont("helvetica", "bold")
   setTextColor(doc, BLACK)
-  doc.text(data.donorName, donorX, y)
+  doc.text(data.donorName, ML, y)
   y += 13
 
   doc.setFontSize(9)
   doc.setFont("helvetica", "normal")
   setTextColor(doc, MID_GRAY)
+  let donorBlockEndY = y
   if (data.donorAddress) {
     const addrLines = doc.splitTextToSize(data.donorAddress, CW * 0.55)
-    doc.text(addrLines, donorX, y)
-    y += addrLines.length * 12
+    doc.text(addrLines, ML, y)
+    donorBlockEndY = y + addrLines.length * 12
   }
 
-  // Receipt meta (right side) — drawn at same top position as donor block
-  const metaTopY = y - (data.donorAddress ? (doc.splitTextToSize(data.donorAddress, CW * 0.55).length * 12) : 0) - 13 - 14
+  // Receipt meta — drawn aligned to top of donor block
+  const metaTopY = y - 13 - 14
   const metaLabelX = metaX
   const metaValueX = metaX + 72
 
@@ -157,26 +171,24 @@ export function generateReceiptPDF(
     doc.setFont("helvetica", "bold")
     setTextColor(doc, BLACK)
     doc.text(label, metaLabelX, my)
-
     doc.setFont("helvetica", "normal")
     setTextColor(doc, MID_GRAY)
     doc.text(value, metaValueX, my)
     my += 16
   })
 
-  y += 18
+  y = donorBlockEndY + 18
 
   // ── DONATIONS TABLE ────────────────────────────────────────────────────────
   const colHash = 25
   const colAmt = 86
-  const colDesc = CW - colHash - colAmt
   const rowH = 20
   const tblX = ML
+  const tableTopY = y
 
   // Header row
   setFill(doc, DARK_RED)
   doc.rect(tblX, y, CW, rowH, "F")
-
   doc.setFontSize(10)
   doc.setFont("helvetica", "bold")
   setTextColor(doc, WHITE)
@@ -190,49 +202,35 @@ export function generateReceiptPDF(
   doc.rect(tblX, y, CW, rowH, "F")
   doc.setFont("helvetica", "normal")
   setTextColor(doc, MID_GRAY)
-  doc.text("1", tblX + 8, y + 13, { align: "left" })
+  doc.text("1", tblX + 8, y + 13)
   doc.text(data.note || "General donation", tblX + colHash + 6, y + 13)
   doc.text(`$${data.donationAmount.toFixed(2)}`, tblX + CW - 6, y + 13, { align: "right" })
   y += rowH
 
-  // Empty spacer row
-  doc.rect(tblX, y, CW, rowH / 2, "S")
-  // (no fill — white)
+  // Spacer row
   y += rowH / 2
 
   // Total row
   setDraw(doc, DARK_RED)
   doc.setLineWidth(0.5)
-  doc.line(tblX, y, tblX + CW, y)   // line above total
-
-  const totalRowH = 20
+  doc.line(tblX, y, tblX + CW, y)
   doc.setFontSize(10)
   doc.setFont("helvetica", "bold")
   setTextColor(doc, MID_GRAY)
   doc.text("Total", tblX + CW - colAmt - 6, y + 13, { align: "right" })
-
   setTextColor(doc, DARK_RED)
   doc.text(`$${data.donationAmount.toFixed(2)}`, tblX + CW - 6, y + 13, { align: "right" })
-  y += totalRowH
+  y += rowH
 
-  // Outer border
+  // Outer border + column dividers
   setDraw(doc, DARK_RED)
   doc.setLineWidth(0.5)
-  const tableTopY = y - rowH * 2 - rowH / 2 - totalRowH - rowH  // recalculate table top
-  // draw border around the whole table block
-  doc.rect(tblX, tableTopY, CW,
-    rowH +           // header
-    rowH +           // data row
-    rowH / 2 +       // spacer
-    totalRowH,       // total
-    "S"
-  )
-  // vertical separator after # column
+  doc.rect(tblX, tableTopY, CW, y - tableTopY, "S")
+
   setDraw(doc, GOLD_LINE)
   doc.setLineWidth(0.3)
-  doc.line(tblX + colHash, tableTopY, tblX + colHash, tableTopY + rowH * 2 + rowH / 2 + totalRowH)
-  // vertical separator before Amount column
-  doc.line(tblX + CW - colAmt, tableTopY, tblX + CW - colAmt, tableTopY + rowH * 2 + rowH / 2 + totalRowH)
+  doc.line(tblX + colHash, tableTopY, tblX + colHash, y)
+  doc.line(tblX + CW - colAmt, tableTopY, tblX + CW - colAmt, y)
 
   y += 8
 
@@ -241,7 +239,6 @@ export function generateReceiptPDF(
   doc.setFont("helvetica", "normal")
   setTextColor(doc, MID_GRAY)
   doc.text("Total In Words:", ML, y + 12)
-
   doc.setFont("helvetica", "bolditalic")
   setTextColor(doc, BLACK)
   const wordLines = doc.splitTextToSize(amountInWords(data.donationAmount), CW - 94)
@@ -284,8 +281,6 @@ export function generateReceiptPDF(
     `No goods or services were provided in exchange for this contribution.`
   const footerLines = doc.splitTextToSize(footerText, CW)
   doc.text(footerLines, ML, footerY + 10)
-
-  // Page number (bottom-right)
   doc.text("1", PW - MR, footerY + 10, { align: "right" })
 
   // ── Output ─────────────────────────────────────────────────────────────────

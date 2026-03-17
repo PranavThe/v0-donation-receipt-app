@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -44,22 +44,14 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>
 
-const ORG_INFO = {
-  name: "Vedanta Society of Providence",
-  address: "227 Angell Street, Providence, Rhode Island 02906, USA",
-  phone: "(401) 421-3960",
-  email: "providence@rkmm.org",
-  website: "vedantaprov.org",
-  ein: "05-0385129",
-  representative: "Swami Yogatmananda",
-  title: "Minister-in-Charge",
-}
-
 export function DonationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [savedReceipt, setSavedReceipt] = useState<{ receiptNumber: string } | null>(null)
+
+  // Points at the white document div inside ReceiptPreview
+  const receiptRef = useRef<HTMLDivElement>(null)
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -99,17 +91,11 @@ export function DonationForm() {
 
       setSavedReceipt({ receiptNumber: result.receipt.receiptNumber })
 
-      await generateReceiptPDF({
-        receiptNumber: result.receipt.receiptNumber,
-        donorName: `${data.firstName} ${data.lastName}`,
-        donorEmail: data.email,
-        donorAddress: data.address,
-        donationAmount: parseFloat(data.donationAmount),
-        donationDate: data.donationDate,
-        paymentMethod: data.paymentMethod,
-        note: data.note,
-        orgInfo: ORG_INFO,
-      })
+      // Wait one tick for React to re-render with the real receipt number
+      await new Promise((r) => setTimeout(r, 150))
+
+      if (!receiptRef.current) throw new Error("Receipt element not found")
+      await generateReceiptPDF(receiptRef.current, result.receipt.receiptNumber)
     } catch (error) {
       console.error("Error:", error)
       alert("There was an error processing your request. Please try again.")
@@ -133,17 +119,13 @@ export function DonationForm() {
     setIsSendingEmail(true)
 
     try {
-      const pdfBase64 = await generateReceiptPDF({
-        receiptNumber: savedReceipt.receiptNumber,
-        donorName: `${data.firstName} ${data.lastName}`,
-        donorEmail: data.email,
-        donorAddress: data.address,
-        donationAmount: parseFloat(data.donationAmount),
-        donationDate: data.donationDate,
-        paymentMethod: data.paymentMethod,
-        note: data.note,
-        orgInfo: ORG_INFO,
-      }, { returnBase64: true })
+      if (!receiptRef.current) throw new Error("Receipt element not found")
+
+      const pdfBase64 = await generateReceiptPDF(
+        receiptRef.current,
+        savedReceipt.receiptNumber,
+        { returnBase64: true }
+      )
 
       const response = await fetch("/api/send-receipt", {
         method: "POST",
@@ -183,24 +165,14 @@ export function DonationForm() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="firstName">First Name *</Label>
-            <Input
-              id="firstName"
-              {...form.register("firstName")}
-              placeholder="John"
-              className="bg-card"
-            />
+            <Input id="firstName" {...form.register("firstName")} placeholder="John" className="bg-card" />
             {form.formState.errors.firstName && (
               <p className="text-sm text-destructive">{form.formState.errors.firstName.message}</p>
             )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="lastName">Last Name *</Label>
-            <Input
-              id="lastName"
-              {...form.register("lastName")}
-              placeholder="Doe"
-              className="bg-card"
-            />
+            <Input id="lastName" {...form.register("lastName")} placeholder="Doe" className="bg-card" />
             {form.formState.errors.lastName && (
               <p className="text-sm text-destructive">{form.formState.errors.lastName.message}</p>
             )}
@@ -210,13 +182,7 @@ export function DonationForm() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email Address *</Label>
-            <Input
-              id="email"
-              type="email"
-              {...form.register("email")}
-              placeholder="john@example.com"
-              className="bg-card"
-            />
+            <Input id="email" type="email" {...form.register("email")} placeholder="john@example.com" className="bg-card" />
             {form.formState.errors.email && (
               <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
             )}
@@ -225,12 +191,7 @@ export function DonationForm() {
             <Label htmlFor="donationAmount">Donation Amount (USD) *</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-              <Input
-                id="donationAmount"
-                {...form.register("donationAmount")}
-                placeholder="100.00"
-                className="bg-card pl-7"
-              />
+              <Input id="donationAmount" {...form.register("donationAmount")} placeholder="100.00" className="bg-card pl-7" />
             </div>
             {form.formState.errors.donationAmount && (
               <p className="text-sm text-destructive">{form.formState.errors.donationAmount.message}</p>
@@ -240,12 +201,7 @@ export function DonationForm() {
 
         <div className="space-y-2">
           <Label htmlFor="address">Address (Optional)</Label>
-          <Input
-            id="address"
-            {...form.register("address")}
-            placeholder="123 Main St, City, State ZIP"
-            className="bg-card"
-          />
+          <Input id="address" {...form.register("address")} placeholder="123 Main St, City, State ZIP" className="bg-card" />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -255,27 +211,17 @@ export function DonationForm() {
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal bg-card",
-                    !form.watch("donationDate") && "text-muted-foreground"
-                  )}
+                  className={cn("w-full justify-start text-left font-normal bg-card", !form.watch("donationDate") && "text-muted-foreground")}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {form.watch("donationDate") ? (
-                    format(form.watch("donationDate"), "PPP")
-                  ) : (
-                    <span>Pick a date</span>
-                  )}
+                  {form.watch("donationDate") ? format(form.watch("donationDate"), "PPP") : <span>Pick a date</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
                   selected={form.watch("donationDate")}
-                  onSelect={(date) => {
-                    form.setValue("donationDate", date || new Date())
-                    setCalendarOpen(false)
-                  }}
+                  onSelect={(date) => { form.setValue("donationDate", date || new Date()); setCalendarOpen(false) }}
                   initialFocus
                 />
               </PopoverContent>
@@ -290,9 +236,7 @@ export function DonationForm() {
               value={form.watch("paymentMethod")}
               onValueChange={(value: FormData["paymentMethod"]) => form.setValue("paymentMethod", value)}
             >
-              <SelectTrigger className="bg-card">
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Cash">Cash</SelectItem>
                 <SelectItem value="Check">Check</SelectItem>
@@ -305,53 +249,24 @@ export function DonationForm() {
 
         <div className="space-y-2">
           <Label htmlFor="note">Note / Purpose (Optional)</Label>
-          <Textarea
-            id="note"
-            {...form.register("note")}
-            placeholder="e.g., General Fund, Building Maintenance"
-            className="bg-card resize-none"
-            rows={2}
-          />
+          <Textarea id="note" {...form.register("note")} placeholder="e.g., General Fund, Building Maintenance" className="bg-card resize-none" rows={2} />
         </div>
 
         <div className="flex flex-col gap-3 pt-2">
-          <Button
-            type="button"
-            onClick={handleSaveAndDownload}
-            disabled={isSubmitting}
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-            size="lg"
-          >
-            {isSubmitting ? (
-              <><Spinner className="mr-2 h-4 w-4" />Saving & Generating...</>
-            ) : (
-              <><Save className="mr-2 h-4 w-4" /><Download className="mr-2 h-4 w-4" />Save & Download Receipt</>
-            )}
+          <Button type="button" onClick={handleSaveAndDownload} disabled={isSubmitting} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" size="lg">
+            {isSubmitting
+              ? <><Spinner className="mr-2 h-4 w-4" />Saving & Generating...</>
+              : <><Save className="mr-2 h-4 w-4" /><Download className="mr-2 h-4 w-4" />Save & Download Receipt</>}
           </Button>
 
-          <Button
-            type="button"
-            onClick={handleEmailReceipt}
-            disabled={isSendingEmail}
-            variant="outline"
-            className="w-full"
-            size="lg"
-          >
-            {isSendingEmail ? (
-              <><Spinner className="mr-2 h-4 w-4" />Sending...</>
-            ) : (
-              <><Mail className="mr-2 h-4 w-4" />Email Receipt to Donor</>
-            )}
+          <Button type="button" onClick={handleEmailReceipt} disabled={isSendingEmail} variant="outline" className="w-full" size="lg">
+            {isSendingEmail
+              ? <><Spinner className="mr-2 h-4 w-4" />Sending...</>
+              : <><Mail className="mr-2 h-4 w-4" />Email Receipt to Donor</>}
           </Button>
 
           {savedReceipt && (
-            <Button
-              type="button"
-              onClick={handleReset}
-              variant="ghost"
-              className="w-full text-muted-foreground"
-              size="sm"
-            >
+            <Button type="button" onClick={handleReset} variant="ghost" className="w-full text-muted-foreground" size="sm">
               Clear Form & Start New Receipt
             </Button>
           )}
@@ -364,9 +279,10 @@ export function DonationForm() {
         )}
       </div>
 
-      {/* Preview Section */}
+      {/* Preview — ref passed in so pdf generator can capture it */}
       <div className="lg:sticky lg:top-4 lg:self-start">
         <ReceiptPreview
+          ref={receiptRef}
           firstName={watchedValues.firstName}
           lastName={watchedValues.lastName}
           email={watchedValues.email}

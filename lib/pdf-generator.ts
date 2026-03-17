@@ -258,29 +258,28 @@ export async function generateReceiptPDF(
   sf(doc, C.attest); sd(doc, C.border2); doc.setLineWidth(0.5)
   doc.roundedRect(ML, y, CW, attH, 2, 2, "FD")
   doc.text(al2, ML + 14, y + 13)
-  y += attH + 26
+  y += attH + 18
 
   // ── SIGNATURE ──────────────────────────────────────────────────────────────
-  // "Acknowledged with gratitude," — then space — then line — then name
   doc.setFontSize(9); doc.setFont("helvetica", "normal"); st(doc, C.mid)
   doc.text("Acknowledged with gratitude,", ML, y)
-  y += 26   // gap before signature line (matches preview's ~20px marginBottom)
+  y += 24   // space below opening line
 
-  // Signature line: long like the preview (~160px = ~115pt)
+  // Signature line first, then name below it
   sd(doc, C.sig); doc.setLineWidth(0.5)
   doc.line(ML, y, ML + 160, y)
-  y += 8
+  y += 14   // name sits below the line
 
   doc.setFontSize(10); doc.setFont("helvetica", "bold"); st(doc, C.dark)
   doc.text(data.orgInfo.representative, ML, y)
   y += 13
   doc.setFontSize(9); doc.setFont("helvetica", "normal"); st(doc, C.mid)
   doc.text(data.orgInfo.title, ML, y); y += 12
-  doc.text(data.orgInfo.name, ML, y); y += 20
+  doc.text(data.orgInfo.name, ML, y); y += 16
 
   // ── FOOTER ─────────────────────────────────────────────────────────────────
-  // Pin to bottom of page (PH - 52) but never overlap content
-  const fy = Math.max(y + 10, PH - 52)
+  // Always pin to bottom of page
+  const fy = PH - 52
   sd(doc, C.border4); doc.setLineWidth(0.5)
   doc.line(ML, fy, PW - MR, fy)
   doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); st(doc, C.lite)

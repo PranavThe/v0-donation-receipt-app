@@ -11,7 +11,27 @@ const ORG_INFO = {
   taxStatus: "501(c)(3) nonprofit",
 }
 
-export function OrgHeader() {
+interface OrgHeaderProps {
+  compact?: boolean
+}
+
+export function OrgHeader({ compact = false }: OrgHeaderProps) {
+  if (compact) {
+    return (
+      <div className="flex items-center gap-3">
+        <Image
+          src="/logo_no_bg2.webp"
+          alt="Vedanta Society of Providence"
+          width={40}
+          height={40}
+          className="object-contain"
+          style={{ width: 'auto', height: '40px' }}
+        />
+        <span className="text-sm font-medium text-foreground">{ORG_INFO.name}</span>
+      </div>
+    )
+  }
+  
   return (
     <div className="text-center space-y-3 pb-6 border-b border-border">
       <div className="flex justify-center mb-4">
